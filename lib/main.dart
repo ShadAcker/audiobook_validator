@@ -164,6 +164,9 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
+  // Use keys to preserve state across tab switches
+  final GlobalKey<State> _scannerKey = GlobalKey();
+  
   static const List<NavigationDestination> _destinations = [
     NavigationDestination(
       icon: Icon(Icons.search),
@@ -187,20 +190,13 @@ class _MainScreenState extends State<MainScreen> {
     ),
   ];
 
-  Widget _buildPage(int index) {
-    switch (index) {
-      case 0:
-        return const ScannerPage();
-      case 1:
-        return const SettingsPage();
-      case 2:
-        return const LogsPage();
-      case 3:
-        return const AboutPage();
-      default:
-        return const ScannerPage();
-    }
-  }
+  // Build all pages once and keep them alive
+  late final List<Widget> _pages = [
+    ScannerPage(key: _scannerKey),
+    const SettingsPage(),
+    const LogsPage(),
+    const AboutPage(),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -256,9 +252,12 @@ class _MainScreenState extends State<MainScreen> {
             width: 1,
             color: colorScheme.outline.withAlpha(50),
           ),
-          // Main content
+          // Main content - IndexedStack preserves state across tab switches
           Expanded(
-            child: _buildPage(_selectedIndex),
+            child: IndexedStack(
+              index: _selectedIndex,
+              children: _pages,
+            ),
           ),
         ],
       ),

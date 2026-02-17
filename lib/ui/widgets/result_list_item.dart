@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../models/scan_result.dart';
 
@@ -36,6 +37,7 @@ class ResultListItem extends StatelessWidget {
           ),
           child: Row(
             children: [
+              // Status icon on the left
               _buildStatusIcon(colorScheme),
               const SizedBox(width: 12),
               Expanded(
@@ -71,6 +73,34 @@ class ResultListItem extends StatelessWidget {
                   ),
                 ),
               ],
+              // Cover art on the right
+              if (result.coverArtPath != null && File(result.coverArtPath!).existsSync()) ...[
+                const SizedBox(width: 16),
+                Container(
+                  height: 56,
+                  constraints: const BoxConstraints(maxWidth: 80),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(6),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withAlpha(40),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: Image.file(
+                      File(result.coverArtPath!),
+                      height: 56,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) => const SizedBox(width: 56, height: 56),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
             ],
           ),
         ),
@@ -78,6 +108,7 @@ class ResultListItem extends StatelessWidget {
     );
   }
 
+  /// Standard status icon
   Widget _buildStatusIcon(ColorScheme colorScheme) {
     IconData icon;
     Color color;

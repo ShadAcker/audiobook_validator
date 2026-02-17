@@ -16,6 +16,7 @@ class ScanResult {
   final String? codec;
   final int? bitrate;
   final int? sampleRate;
+  final String? coverArtPath; // Path to extracted cover art image
 
   ScanResult({
     required this.path,
@@ -34,6 +35,7 @@ class ScanResult {
     this.codec,
     this.bitrate,
     this.sampleRate,
+    this.coverArtPath,
   });
 
   bool get isOk =>
@@ -93,6 +95,7 @@ class ScanResult {
         'codec': codec,
         'bitrate': bitrate,
         'sampleRate': sampleRate,
+        'coverArtPath': coverArtPath,
         'status': status.name,
         'statusDescription': statusDescription,
       };

@@ -22,8 +22,11 @@ class ScannerPage extends StatefulWidget {
   State<ScannerPage> createState() => _ScannerPageState();
 }
 
-class _ScannerPageState extends State<ScannerPage> {
+class _ScannerPageState extends State<ScannerPage> with AutomaticKeepAliveClientMixin {
   final AudioScannerService _scanner = AudioScannerService();
+  
+  @override
+  bool get wantKeepAlive => true; // Keep state alive across tab switches
   final List<ScanResult> _results = [];
   bool _isScanning = false;
   bool _showOnlyProblematic = false;
@@ -41,6 +44,7 @@ class _ScannerPageState extends State<ScannerPage> {
   int _segmentsCurrent = 0;
   int _segmentsTotal = 0;
   Duration? _currentFileDuration;
+  String? _currentCoverArtPath;
 
   List<ScanResult> get _filteredResults {
     if (_showOnlyProblematic) {
@@ -94,6 +98,12 @@ class _ScannerPageState extends State<ScannerPage> {
     } else if (mounted) {
       final version = await _scanner.getFfmpegVersion();
       logger.info('FFmpeg ready: ${version ?? 'unknown version'}');
+      
+      // Auto-start scan for dev testing
+      const devTestPath = r'E:\dump\audiobooks';
+      if (await Directory(devTestPath).exists()) {
+        _startScan(devTestPath);
+      }
     }
   }
 
@@ -250,6 +260,7 @@ class _ScannerPageState extends State<ScannerPage> {
             _segmentsCurrent = fp.segmentsCurrent ?? 0;
             _segmentsTotal = fp.segmentsTotal ?? 0;
             _currentFileDuration = fp.fileDuration;
+            _currentCoverArtPath = fp.coverArtPath;
             _statusText = 'Scanning: ${fp.fileName}';
           });
         } else if (progress.result != null) {
@@ -261,6 +272,7 @@ class _ScannerPageState extends State<ScannerPage> {
             _currentFileName = '';
             _currentPhase = '';
             _fileProgress = 0.0;
+            _currentCoverArtPath = null;
           });
 
           // Log issues
@@ -330,6 +342,7 @@ class _ScannerPageState extends State<ScannerPage> {
             _segmentsCurrent = fp.segmentsCurrent ?? 0;
             _segmentsTotal = fp.segmentsTotal ?? 0;
             _currentFileDuration = fp.fileDuration;
+            _currentCoverArtPath = fp.coverArtPath;
             _statusText = 'Scanning: ${fp.fileName}';
           });
         } else if (progress.result != null) {
@@ -340,6 +353,7 @@ class _ScannerPageState extends State<ScannerPage> {
             _currentFileName = '';
             _currentPhase = '';
             _fileProgress = 0.0;
+            _currentCoverArtPath = null;
           });
         }
       }
@@ -543,6 +557,7 @@ class _ScannerPageState extends State<ScannerPage> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -649,66 +664,102 @@ class _ScannerPageState extends State<ScannerPage> {
                                     color: colorScheme.surfaceContainerHighest,
                                     borderRadius: BorderRadius.circular(8),
                                   ),
-                                  child: Column(
+                                  child: Row(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Row(
-                                        children: [
-                                          const Icon(Icons.audio_file, size: 16),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Text(
-                                              _currentFileName,
-                                              style: theme.textTheme.bodyMedium?.copyWith(
-                                                fontWeight: FontWeight.bold,
+                                      // Cover art on left during scanning
+                                      if (_currentCoverArtPath != null && File(_currentCoverArtPath!).existsSync()) ...[
+                                        Container(
+                                          height: 72,
+                                          constraints: const BoxConstraints(maxWidth: 100),
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(6),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withAlpha(40),
+                                                blurRadius: 4,
+                                                offset: const Offset(0, 2),
                                               ),
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
+                                            ],
                                           ),
-                                          if (_currentFileDuration != null)
-                                            Text(
-                                              _formatDuration(_currentFileDuration!),
-                                              style: theme.textTheme.bodySmall,
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(6),
+                                            child: Image.file(
+                                              File(_currentCoverArtPath!),
+                                              height: 72,
+                                              fit: BoxFit.contain,
+                                              errorBuilder: (context, error, stackTrace) => 
+                                                const SizedBox(width: 72, height: 72),
                                             ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        children: [
-                                          SizedBox(
-                                            width: 16,
-                                            height: 16,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              value: _fileProgress > 0 ? _fileProgress : null,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Text(
-                                              _currentPhase,
-                                              style: theme.textTheme.bodySmall,
-                                            ),
-                                          ),
-                                          if (_segmentsTotal > 1)
-                                            Text(
-                                              '$_segmentsCurrent / $_segmentsTotal',
-                                              style: theme.textTheme.bodySmall?.copyWith(
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                      if (_segmentsTotal > 1) ...[
-                                        const SizedBox(height: 4),
-                                        ClipRRect(
-                                          borderRadius: BorderRadius.circular(4),
-                                          child: LinearProgressIndicator(
-                                            value: _fileProgress,
-                                            backgroundColor: colorScheme.surfaceContainerLow,
                                           ),
                                         ),
+                                        const SizedBox(width: 12),
                                       ],
+                                      // File info and progress
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                const Icon(Icons.audio_file, size: 16),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text(
+                                                    _currentFileName,
+                                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                                      fontWeight: FontWeight.bold,
+                                                    ),
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                                if (_currentFileDuration != null)
+                                                  Text(
+                                                    _formatDuration(_currentFileDuration!),
+                                                    style: theme.textTheme.bodySmall,
+                                                  ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Row(
+                                              children: [
+                                                SizedBox(
+                                                  width: 16,
+                                                  height: 16,
+                                                  child: CircularProgressIndicator(
+                                                    strokeWidth: 2,
+                                                    value: _fileProgress > 0 ? _fileProgress : null,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text(
+                                                    _currentPhase,
+                                                    style: theme.textTheme.bodySmall,
+                                                  ),
+                                                ),
+                                                if (_segmentsTotal > 1)
+                                                  Text(
+                                                    '$_segmentsCurrent / $_segmentsTotal',
+                                                    style: theme.textTheme.bodySmall?.copyWith(
+                                                      fontWeight: FontWeight.bold,
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                            if (_segmentsTotal > 1) ...[
+                                              const SizedBox(height: 4),
+                                              ClipRRect(
+                                                borderRadius: BorderRadius.circular(4),
+                                                child: LinearProgressIndicator(
+                                                  value: _fileProgress,
+                                                  backgroundColor: colorScheme.surfaceContainerLow,
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),

@@ -16,6 +16,7 @@ class FileScanProgress {
   final int? segmentsTotal;
   final Duration? fileDuration;
   final String? details;
+  final String? coverArtPath; // Cover art extracted early for display during scan
 
   FileScanProgress({
     required this.fileName,
@@ -25,6 +26,7 @@ class FileScanProgress {
     this.segmentsTotal,
     this.fileDuration,
     this.details,
+    this.coverArtPath,
   });
 
   String get phaseDescription {
@@ -72,6 +74,12 @@ class AudioScannerService {
   double silenceDurationSec = 10.0;
   bool detectChapterSilence = true;
   
+  /// Whether to extract cover art during scanning
+  bool extractCoverArt = true;
+  
+  /// Cache directory for extracted cover art
+  String? _coverArtCacheDir;
+  
   /// Scan mode: 'full' scans entire file, 'sample' only checks segments
   String scanMode = 'sample';
   
@@ -82,6 +90,151 @@ class AudioScannerService {
   static const supportedExtensions = ['.mp3', '.m4b', '.m4a', '.aac', '.wav', '.flac', '.ogg'];
 
   AudioScannerService();
+
+  /// Initialize cover art cache directory
+  Future<void> _initCoverArtCache() async {
+    if (_coverArtCacheDir != null) return;
+    
+    final tempDir = Directory.systemTemp;
+    _coverArtCacheDir = p.join(tempDir.path, 'audiobook_validator_covers');
+    final cacheDir = Directory(_coverArtCacheDir!);
+    if (!await cacheDir.exists()) {
+      await cacheDir.create(recursive: true);
+    }
+  }
+  
+  /// Extract cover art from an audio file
+  /// Returns the path to the extracted image, or null if no cover art found
+  Future<String?> extractCoverArtFromFile(String filePath) async {
+    try {
+      await _initCoverArtCache();
+      
+      // Generate a unique filename based on the file path hash
+      final hash = filePath.hashCode.abs().toRadixString(16);
+      final coverPath = p.join(_coverArtCacheDir!, '$hash.jpg');
+      
+      // Log file for debugging
+      final logPath = p.join(_coverArtCacheDir!, 'extraction_log.txt');
+      final logFile = File(logPath);
+      await logFile.writeAsString(
+        '--- Extraction attempt for: $filePath ---\n'
+        'FFmpeg path: $_ffmpegPath\n'
+        'Output path: $coverPath\n',
+        mode: FileMode.append,
+      );
+      
+      // Check if already extracted
+      if (await File(coverPath).exists()) {
+        final size = await File(coverPath).length();
+        if (size > 1000) {
+          await logFile.writeAsString('Using cached cover: ${size} bytes\n\n', mode: FileMode.append);
+          return coverPath;
+        }
+      }
+      
+      // For M4B/M4A/MP4 containers and MP3 with embedded art
+      // Use -vcodec copy to just copy the embedded picture stream
+      var result = await Process.run(
+        _ffmpegPath,
+        [
+          '-y',               // Overwrite output
+          '-i', filePath,
+          '-an',              // No audio
+          '-vcodec', 'copy',  // Copy video stream (the cover art) as-is
+          coverPath,
+        ],
+        stderrEncoding: utf8,
+      );
+      
+      await logFile.writeAsString(
+        'Method 1 exit code: ${result.exitCode}\n'
+        'Stderr: ${result.stderr}\n',
+        mode: FileMode.append,
+      );
+      
+      // Check if extraction succeeded
+      var coverFile = File(coverPath);
+      if (await coverFile.exists()) {
+        final size = await coverFile.length();
+        await logFile.writeAsString('Method 1 produced file of $size bytes\n', mode: FileMode.append);
+        if (size > 1000) {  // At least 1KB - valid image
+          await logFile.writeAsString('SUCCESS - returning $coverPath\n\n', mode: FileMode.append);
+          return coverPath;
+        } else {
+          await coverFile.delete().catchError((_) {});
+        }
+      } else {
+        await logFile.writeAsString('Method 1 did not create file\n', mode: FileMode.append);
+      }
+      
+      // Method 2: Try with explicit MJPEG conversion (for some file types)
+      result = await Process.run(
+        _ffmpegPath,
+        [
+          '-y',
+          '-i', filePath,
+          '-an',
+          '-vcodec', 'mjpeg',
+          '-vframes', '1',
+          coverPath,
+        ],
+        stderrEncoding: utf8,
+      );
+      
+      coverFile = File(coverPath);
+      if (await coverFile.exists()) {
+        final size = await coverFile.length();
+        if (size > 1000) {
+          return coverPath;
+        } else {
+          await coverFile.delete().catchError((_) {});
+        }
+      }
+      
+      // Method 3: Try extracting with ffmpeg filter for attached pics
+      final pngPath = p.join(_coverArtCacheDir!, '$hash.png');
+      result = await Process.run(
+        _ffmpegPath,
+        [
+          '-y',
+          '-i', filePath,
+          '-an',
+          '-vf', 'scale=300:-1',  // Scale to 300px width
+          '-vframes', '1',
+          pngPath,
+        ],
+        stderrEncoding: utf8,
+      );
+      
+      final pngFile = File(pngPath);
+      if (await pngFile.exists()) {
+        final size = await pngFile.length();
+        if (size > 1000) {
+          return pngPath;
+        } else {
+          await pngFile.delete().catchError((_) {});
+        }
+      }
+      
+      print('DEBUG: No cover art extracted for $filePath');
+      return null;
+    } catch (e, stackTrace) {
+      print('DEBUG: Exception extracting cover art: $e');
+      print('DEBUG: Stack trace: $stackTrace');
+      return null;
+    }
+  }
+  
+  /// Clean up cover art cache
+  Future<void> clearCoverArtCache() async {
+    if (_coverArtCacheDir != null) {
+      final cacheDir = Directory(_coverArtCacheDir!);
+      if (await cacheDir.exists()) {
+        await cacheDir.delete(recursive: true);
+        _coverArtCacheDir = null;
+      }
+    }
+  }
 
   /// Set custom FFmpeg/FFprobe paths
   void setFfmpegPaths({String? ffmpegPath, String? ffprobePath}) {
@@ -141,8 +294,17 @@ class AudioScannerService {
     FileScanProgressCallback? onProgress,
   }) async {
     final fileName = p.basename(filePath);
+    
+    // Debug logging at very start
+    final debugFile = File(p.join(Directory.systemTemp.path, 'av_debug.txt'));
+    try {
+      await debugFile.writeAsString(
+        '${DateTime.now()}: scanFile STARTED for $fileName\n',
+        mode: FileMode.append,
+      );
+    } catch (_) {}
 
-    void reportProgress(ScanPhase phase, {double progress = 0.0, int? segmentsCurrent, int? segmentsTotal, Duration? fileDuration, String? details}) {
+    void reportProgress(ScanPhase phase, {double progress = 0.0, int? segmentsCurrent, int? segmentsTotal, Duration? fileDuration, String? details, String? coverArtPath}) {
       onProgress?.call(FileScanProgress(
         fileName: fileName,
         phase: phase,
@@ -151,8 +313,12 @@ class AudioScannerService {
         segmentsTotal: segmentsTotal,
         fileDuration: fileDuration,
         details: details,
+        coverArtPath: coverArtPath,
       ));
     }
+
+    // Variable to track cover art extracted early
+    String? earlyExtractedCoverArtPath;
 
     try {
       // Step 1: Check if file exists
@@ -194,8 +360,13 @@ class AudioScannerService {
       final duration = probeResult['duration'] as Duration?;
       final chapters = probeResult['chapters'] as List<ChapterInfo>? ?? [];
 
+      // Extract cover art early so it can be displayed during scanning
+      if (extractCoverArt) {
+        earlyExtractedCoverArtPath = await extractCoverArtFromFile(filePath);
+      }
+
       // Step 3: Check for corruption (samples start/middle/end for long files)
-      reportProgress(ScanPhase.checkingCorruption, fileDuration: duration);
+      reportProgress(ScanPhase.checkingCorruption, fileDuration: duration, coverArtPath: earlyExtractedCoverArtPath);
       final isCorrupt = await _checkCorruption(
         filePath,
         fileDuration: duration,
@@ -207,18 +378,19 @@ class AudioScannerService {
             segmentsCurrent: current,
             segmentsTotal: total,
             fileDuration: duration,
+            coverArtPath: earlyExtractedCoverArtPath,
           );
         },
       );
 
       // Step 4: Check for truncation (metadata claims longer duration than actual data)
-      reportProgress(ScanPhase.checkingTruncation, fileDuration: duration);
+      reportProgress(ScanPhase.checkingTruncation, fileDuration: duration, coverArtPath: earlyExtractedCoverArtPath);
       final truncationResult = await _checkTruncation(filePath, duration);
       final isTruncated = truncationResult['isTruncated'] as bool;
       final actualDuration = truncationResult['actualDuration'] as Duration?;
 
       // Step 5: Detect silence
-      reportProgress(ScanPhase.detectingSilence, fileDuration: duration);
+      reportProgress(ScanPhase.detectingSilence, fileDuration: duration, coverArtPath: earlyExtractedCoverArtPath);
       final silenceIntervals = await _detectSilence(
         filePath,
         fileDuration: duration,
@@ -231,13 +403,14 @@ class AudioScannerService {
             segmentsCurrent: current,
             segmentsTotal: total,
             fileDuration: duration,
+            coverArtPath: earlyExtractedCoverArtPath,
           );
         },
       );
       final hasLongSilence = silenceIntervals.isNotEmpty;
 
       // Step 6: Check for chapter-level silence
-      reportProgress(ScanPhase.analyzingChapters, fileDuration: duration);
+      reportProgress(ScanPhase.analyzingChapters, fileDuration: duration, coverArtPath: earlyExtractedCoverArtPath);
       List<ChapterSilenceInfo> chapterSilenceDetails = [];
       bool hasChapterSilence = false;
 
@@ -246,7 +419,7 @@ class AudioScannerService {
         hasChapterSilence = chapterSilenceDetails.isNotEmpty;
       }
 
-      reportProgress(ScanPhase.complete, progress: 1.0, fileDuration: duration);
+      reportProgress(ScanPhase.complete, progress: 1.0, fileDuration: duration, coverArtPath: earlyExtractedCoverArtPath);
 
       return ScanResult(
         path: filePath,
@@ -264,6 +437,7 @@ class AudioScannerService {
         codec: probeResult['codec'],
         bitrate: probeResult['bitrate'],
         sampleRate: probeResult['sampleRate'],
+        coverArtPath: earlyExtractedCoverArtPath,
       );
     } catch (e) {
       return ScanResult(

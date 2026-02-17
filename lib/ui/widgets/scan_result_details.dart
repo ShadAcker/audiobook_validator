@@ -49,15 +49,55 @@ class _ScanResultDetailsState extends State<ScanResultDetails> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
-          Text(
-            'File Details',
-            style: theme.textTheme.titleLarge,
+          // Header with optional cover art
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Cover art (if available)
+              if (widget.result.coverArtPath != null) ...[
+                Container(
+                  height: 120,
+                  constraints: const BoxConstraints(maxWidth: 160),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.file(
+                      File(widget.result.coverArtPath!),
+                      height: 120,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        width: 120,
+                        height: 120,
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.music_note,
+                          size: 48,
+                          color: colorScheme.outline,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+              ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'File Details',
+                      style: theme.textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    // Status card
+                    _buildStatusCard(colorScheme),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
-
-          // Status card
-          _buildStatusCard(colorScheme),
           const SizedBox(height: 16),
 
           // File info

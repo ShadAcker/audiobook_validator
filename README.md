@@ -6,6 +6,20 @@ A cross-platform desktop application for validating audiobook files using FFmpeg
 ![Flutter](https://img.shields.io/badge/Flutter-3.41+-02569B.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)
 
+## Screenshots
+
+| Scanning | Results |
+|----------|---------|
+| ![Scanning](docs/screenshots/audiobook_validator_scanning.png) | ![Results](docs/screenshots/audiobook_validator_resluts.png) |
+
+| Settings | Logs |
+|----------|------|
+| ![Settings](docs/screenshots/audiobook_validator_settings.png) | ![Logs](docs/screenshots/audiobook_validator_logs.png) |
+
+| Issue Detection | About |
+|-----------------|-------|
+| ![Truncated](docs/screenshots/audiobook_validator_truncated.png) | ![About](docs/screenshots/audiobook_validator_about.png) |
+
 ## Features
 
 - **Corruption Detection** - Scans audio streams for decoding errors and data corruption
@@ -31,7 +45,41 @@ A cross-platform desktop application for validating audiobook files using FFmpeg
 
 Before building and running this application, you need to install the following:
 
-### 1. Flutter SDK
+### Quick Start (Windows)
+
+For Windows users, we provide an automated installer script that handles all prerequisites:
+
+```powershell
+# Run from the project directory (as Administrator for full functionality)
+.\Install-DevEnvironment.ps1
+```
+
+The script will:
+- Enable Windows Developer Mode (required for Flutter desktop)
+- Install Visual Studio with C++ build tools
+- Install FFmpeg
+- Install Flutter SDK
+- Verify everything with `flutter doctor`
+
+You can skip specific components:
+```powershell
+.\Install-DevEnvironment.ps1 -SkipVisualStudio  # If VS is already installed
+.\Install-DevEnvironment.ps1 -SkipFFmpeg        # If FFmpeg is already installed
+```
+
+---
+
+### Manual Installation
+
+### 1. Windows Developer Mode
+
+**Required for Flutter desktop development on Windows.**
+
+1. Open **Settings** → **Privacy & Security** → **For developers**
+2. Toggle **Developer Mode** to **On**
+3. Accept the confirmation dialog
+
+### 2. Flutter SDK
 
 Flutter is required to build and run this application.
 
@@ -57,7 +105,7 @@ brew install --cask flutter
 sudo snap install flutter --classic
 ```
 
-### 2. FFmpeg
+### 3. FFmpeg
 
 FFmpeg is required for audio analysis.
 
@@ -74,8 +122,18 @@ choco install ffmpeg -y
 ```
 
 **Option C: Manual Installation**
-1. Download from https://ffmpeg.org/download.html
-2. Extract and add the `bin` folder to your system PATH
+1. Download from https://ffmpeg.org/download.html (or https://www.gyan.dev/ffmpeg/builds/)
+2. Extract to `C:\ffmpeg` (recommended) or another location
+3. Add the `bin` folder to your system PATH
+
+**FFmpeg Install Locations:**
+
+After installation, FFmpeg is typically found at:
+- **winget:** `%LOCALAPPDATA%\Microsoft\WinGet\Packages\Gyan.FFmpeg_*\ffmpeg-*\bin\`
+- **Chocolatey:** `C:\ProgramData\chocolatey\bin\`
+- **Manual:** Wherever you extracted it (e.g., `C:\ffmpeg\bin\`)
+
+> **Note:** The app will auto-detect FFmpeg from common locations. If not found, configure the path in Settings.
 
 #### macOS
 ```bash
@@ -89,7 +147,7 @@ sudo dnf install ffmpeg    # Fedora
 sudo pacman -S ffmpeg      # Arch
 ```
 
-### 3. Platform-Specific Requirements
+### 4. Platform-Specific Requirements
 
 #### Windows
 
