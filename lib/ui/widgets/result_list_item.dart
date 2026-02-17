@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../models/scan_result.dart';
+import '../../utils/time_formatter.dart';
 
 /// A list item widget showing scan result summary
 class ResultListItem extends StatelessWidget {
@@ -67,9 +68,26 @@ class ResultListItem extends StatelessWidget {
               if (result.duration != null) ...[
                 const SizedBox(width: 8),
                 Text(
-                  _formatDuration(result.duration!),
+                  TimeFormatter.formatBookLength(result.duration!),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colorScheme.outline,
+                  ),
+                ),
+              ],
+              // Scan time
+              if (result.scanDuration != null) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    TimeFormatter.formatScanTime(result.scanDuration!),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: colorScheme.outline,
+                    ),
                   ),
                 ),
               ],
@@ -157,16 +175,5 @@ class ResultListItem extends StatelessWidget {
       case ScanResultStatus.error:
         return colorScheme.error;
     }
-  }
-
-  String _formatDuration(Duration duration) {
-    final hours = duration.inHours;
-    final mins = duration.inMinutes.remainder(60);
-    final secs = duration.inSeconds.remainder(60);
-
-    if (hours > 0) {
-      return '${hours}h ${mins}m';
-    }
-    return '${mins}m ${secs}s';
   }
 }

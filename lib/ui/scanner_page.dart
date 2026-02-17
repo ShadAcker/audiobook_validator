@@ -8,11 +8,13 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 
+import '../models/book_scan_result.dart';
 import '../models/scan_result.dart';
 import '../services/audio_scanner_service.dart';
 import '../services/logging_service.dart';
 import '../services/settings_provider.dart';
-import 'widgets/result_list_item.dart';
+import '../utils/time_formatter.dart';
+import 'widgets/book_result_tile.dart';
 import 'widgets/scan_result_details.dart';
 
 class ScannerPage extends StatefulWidget {
@@ -45,12 +47,21 @@ class _ScannerPageState extends State<ScannerPage> with AutomaticKeepAliveClient
   int _segmentsTotal = 0;
   Duration? _currentFileDuration;
   String? _currentCoverArtPath;
+  
+  // Timing tracking
+  final Stopwatch _fileScanStopwatch = Stopwatch();
+  DateTime? _scanStartTime;
+  // ignore: unused_field - reserved for future use displaying total time elsewhere
+  Duration? _totalScanDuration;
 
-  List<ScanResult> get _filteredResults {
+  /// Get results grouped by audiobook folder
+  List<BookScanResult> get _groupedResults {
+    final books = BookScanResult.groupByBook(_results);
     if (_showOnlyProblematic) {
-      return _results.where((r) => !r.isOk).toList();
+      // Only show books that have at least one problem
+      return books.where((b) => !b.isAllPassed).toList();
     }
-    return _results;
+    return books;
   }
 
   @override
@@ -209,6 +220,8 @@ class _ScannerPageState extends State<ScannerPage> with AutomaticKeepAliveClient
       _statusText = 'Finding audio files...';
       _progress = 0.0;
       _selectedResult = null;
+      _scanStartTime = DateTime.now();
+      _totalScanDuration = null;
     });
 
     logger.info('Starting scan of: $path');
@@ -253,6 +266,13 @@ class _ScannerPageState extends State<ScannerPage> with AutomaticKeepAliveClient
         if (progress.isFileProgressUpdate) {
           // Update file-level progress
           final fp = progress.fileProgress!;
+          
+          // Start timer for new file
+          if (_currentFileName != fp.fileName) {
+            _fileScanStopwatch.reset();
+            _fileScanStopwatch.start();
+          }
+          
           setState(() {
             _currentFileName = fp.fileName;
             _currentPhase = fp.phaseDescription;
@@ -264,9 +284,13 @@ class _ScannerPageState extends State<ScannerPage> with AutomaticKeepAliveClient
             _statusText = 'Scanning: ${fp.fileName}';
           });
         } else if (progress.result != null) {
-          // File completed
+          // File completed - stop timer and record duration
+          _fileScanStopwatch.stop();
+          final fileScanDuration = _fileScanStopwatch.elapsed;
+          final resultWithTiming = progress.result!.copyWithScanDuration(fileScanDuration);
+          
           setState(() {
-            _results.add(progress.result!);
+            _results.add(resultWithTiming);
             _scannedFiles = progress.current;
             _progress = progress.percentage;
             _currentFileName = '';
@@ -284,14 +308,20 @@ class _ScannerPageState extends State<ScannerPage> with AutomaticKeepAliveClient
 
       // Summary
       final problemCount = _results.where((r) => !r.isOk).length;
+      final totalDuration = _scanStartTime != null 
+          ? DateTime.now().difference(_scanStartTime!) 
+          : Duration.zero;
+      final bookCount = BookScanResult.groupByBook(_results).length;
+      
       setState(() {
-        _statusText = 'Scan complete: ${_results.length} files, $problemCount issues';
+        _totalScanDuration = totalDuration;
+        _statusText = 'Scan complete: $bookCount books (${_results.length} files), $problemCount issues - Total: ${TimeFormatter.formatScanTime(totalDuration)}';
         _isScanning = false;
         _currentFileName = '';
         _currentPhase = '';
       });
 
-      logger.info('Scan complete: ${_results.length} files scanned, $problemCount issues found');
+      logger.info('Scan complete: ${_results.length} files scanned, $problemCount issues found, total time: ${TimeFormatter.formatScanTime(totalDuration)}');
     } catch (e, st) {
       logger.error('Scan failed', e, st);
       setState(() {
@@ -326,6 +356,8 @@ class _ScannerPageState extends State<ScannerPage> with AutomaticKeepAliveClient
         _currentFileName = '';
         _currentPhase = '';
         _fileProgress = 0.0;
+        _scanStartTime = DateTime.now();
+        _totalScanDuration = null;
       });
 
       logger.info('Starting scan of ${paths.length} dropped items');
@@ -335,6 +367,13 @@ class _ScannerPageState extends State<ScannerPage> with AutomaticKeepAliveClient
 
         if (progress.isFileProgressUpdate) {
           final fp = progress.fileProgress!;
+          
+          // Start timer for new file
+          if (_currentFileName != fp.fileName) {
+            _fileScanStopwatch.reset();
+            _fileScanStopwatch.start();
+          }
+          
           setState(() {
             _currentFileName = fp.fileName;
             _currentPhase = fp.phaseDescription;
@@ -346,8 +385,13 @@ class _ScannerPageState extends State<ScannerPage> with AutomaticKeepAliveClient
             _statusText = 'Scanning: ${fp.fileName}';
           });
         } else if (progress.result != null) {
+          // File completed - stop timer and record duration
+          _fileScanStopwatch.stop();
+          final fileScanDuration = _fileScanStopwatch.elapsed;
+          final resultWithTiming = progress.result!.copyWithScanDuration(fileScanDuration);
+          
           setState(() {
-            _results.add(progress.result!);
+            _results.add(resultWithTiming);
             _scannedFiles = progress.current;
             _progress = progress.percentage;
             _currentFileName = '';
@@ -359,14 +403,20 @@ class _ScannerPageState extends State<ScannerPage> with AutomaticKeepAliveClient
       }
 
       final problemCount = _results.where((r) => !r.isOk).length;
+      final totalDuration = _scanStartTime != null 
+          ? DateTime.now().difference(_scanStartTime!) 
+          : Duration.zero;
+      final bookCount = BookScanResult.groupByBook(_results).length;
+      
       setState(() {
-        _statusText = 'Scan complete: ${_results.length} files, $problemCount issues';
+        _totalScanDuration = totalDuration;
+        _statusText = 'Scan complete: $bookCount books (${_results.length} files), $problemCount issues - Total: ${TimeFormatter.formatScanTime(totalDuration)}';
         _isScanning = false;
         _currentFileName = '';
         _currentPhase = '';
       });
 
-      logger.info('Scan complete: ${_results.length} files scanned, $problemCount issues found');
+      logger.info('Scan complete: ${_results.length} files scanned, $problemCount issues found, total time: ${TimeFormatter.formatScanTime(totalDuration)}');
     }
   }
 
@@ -793,19 +843,19 @@ class _ScannerPageState extends State<ScannerPage> with AutomaticKeepAliveClient
                   ? _buildEmptyState()
                   : Row(
                       children: [
-                        // Results list
+                        // Results list - grouped by book
                         Expanded(
                           flex: 2,
                           child: ListView.builder(
-                            itemCount: _filteredResults.length,
+                            itemCount: _groupedResults.length,
                             itemBuilder: (context, index) {
-                              final result = _filteredResults[index];
-                              return ResultListItem(
-                                result: result,
-                                isSelected: _selectedResult == result,
-                                onTap: () {
+                              final book = _groupedResults[index];
+                              return BookResultTile(
+                                book: book,
+                                selectedResult: _selectedResult,
+                                onFileSelected: (file) {
                                   setState(() {
-                                    _selectedResult = result;
+                                    _selectedResult = file;
                                   });
                                 },
                               );

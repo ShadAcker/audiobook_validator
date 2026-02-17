@@ -17,6 +17,7 @@ class ScanResult {
   final int? bitrate;
   final int? sampleRate;
   final String? coverArtPath; // Path to extracted cover art image
+  final Duration? scanDuration; // Time taken to scan this file
 
   ScanResult({
     required this.path,
@@ -36,7 +37,32 @@ class ScanResult {
     this.bitrate,
     this.sampleRate,
     this.coverArtPath,
+    this.scanDuration,
   });
+
+  /// Create a copy with an updated scanDuration
+  ScanResult copyWithScanDuration(Duration scanDuration) {
+    return ScanResult(
+      path: path,
+      fileName: fileName,
+      hasAudioStream: hasAudioStream,
+      isCorrupt: isCorrupt,
+      isTruncated: isTruncated,
+      hasLongSilence: hasLongSilence,
+      hasChapterSilence: hasChapterSilence,
+      silenceIntervals: silenceIntervals,
+      chapters: chapters,
+      chapterSilenceDetails: chapterSilenceDetails,
+      error: error,
+      duration: duration,
+      actualDuration: actualDuration,
+      codec: codec,
+      bitrate: bitrate,
+      sampleRate: sampleRate,
+      coverArtPath: coverArtPath,
+      scanDuration: scanDuration,
+    );
+  }
 
   bool get isOk =>
       hasAudioStream && !isCorrupt && !isTruncated && !hasLongSilence && !hasChapterSilence && error == null;
@@ -96,6 +122,7 @@ class ScanResult {
         'bitrate': bitrate,
         'sampleRate': sampleRate,
         'coverArtPath': coverArtPath,
+        'scanDuration': scanDuration?.inMilliseconds,
         'status': status.name,
         'statusDescription': statusDescription,
       };
