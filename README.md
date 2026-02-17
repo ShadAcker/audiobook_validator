@@ -43,6 +43,8 @@ A cross-platform desktop application for validating audiobook files using FFmpeg
 
 ## Prerequisites
 
+> **⚠️ Platform Note:** This application has been primarily developed and tested on **Windows**. While it should work on macOS and Linux (Flutter is cross-platform), these platforms have not been thoroughly tested by the original author. Bug reports and contributions for non-Windows platforms are welcome!
+
 Before building and running this application, you need to install the following:
 
 ### Quick Start (Windows)
@@ -66,6 +68,33 @@ You can skip specific components:
 .\Install-DevEnvironment.ps1 -SkipVisualStudio  # If VS is already installed
 .\Install-DevEnvironment.ps1 -SkipFFmpeg        # If FFmpeg is already installed
 ```
+
+### Quick Start (macOS / Linux)
+
+For macOS and Linux users, a bash installer script is provided:
+
+```bash
+# Make the script executable
+chmod +x install-dev-environment.sh
+
+# Run the installer
+./install-dev-environment.sh
+```
+
+The script will:
+- Install platform-specific build tools (Xcode CLI on macOS, clang/cmake/gtk on Linux)
+- Install FFmpeg (via Homebrew on macOS, package manager on Linux)
+- Install Flutter SDK
+- Verify everything with `flutter doctor`
+
+You can skip specific components:
+```bash
+./install-dev-environment.sh --skip-flutter   # If Flutter is already installed
+./install-dev-environment.sh --skip-ffmpeg    # If FFmpeg is already installed
+./install-dev-environment.sh --skip-tools     # If build tools are already installed
+```
+
+> **Note:** The macOS/Linux installer script was written by a Windows user and has not been extensively tested. Please report any issues!
 
 ---
 
