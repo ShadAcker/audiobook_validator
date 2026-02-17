@@ -8,17 +8,26 @@ A cross-platform desktop application for validating audiobook files using FFmpeg
 
 ## Screenshots
 
-| Scanning | Results |
-|----------|---------|
-| ![Scanning](docs/screenshots/audiobook_validator_scanning.png) | ![Results](docs/screenshots/audiobook_validator_resluts.png) |
+### Home
+![Home](docs/screenshots/audiobook_validator_homestate.png)
 
-| Settings | Logs |
-|----------|------|
-| ![Settings](docs/screenshots/audiobook_validator_settings.png) | ![Logs](docs/screenshots/audiobook_validator_logs.png) |
+### Scanning
+![Scanning](docs/screenshots/audiobook_validator_scanning.png)
 
-| Issue Detection | About |
-|-----------------|-------|
-| ![Truncated](docs/screenshots/audiobook_validator_truncated.png) | ![About](docs/screenshots/audiobook_validator_about.png) |
+### Results
+![Results](docs/screenshots/audiobook_validator_resluts.png)
+
+### Issue Detection
+![Truncated](docs/screenshots/audiobook_validator_truncated.png)
+
+### Settings
+![Settings](docs/screenshots/audiobook_validator_settings.png)
+
+### Logs
+![Logs](docs/screenshots/audiobook_validator_logs.png)
+
+### About
+![About](docs/screenshots/audiobook_validator_about.png)
 
 ## Features
 
