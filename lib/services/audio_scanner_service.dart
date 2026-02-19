@@ -127,7 +127,7 @@ class AudioScannerService {
       if (await File(coverPath).exists()) {
         final size = await File(coverPath).length();
         if (size > 1000) {
-          await logFile.writeAsString('Using cached cover: ${size} bytes\n\n', mode: FileMode.append);
+          await logFile.writeAsString('Using cached cover: $size bytes\n\n', mode: FileMode.append);
           return coverPath;
         }
       }
